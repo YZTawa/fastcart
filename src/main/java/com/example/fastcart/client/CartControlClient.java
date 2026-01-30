@@ -1,7 +1,6 @@
 package com.example.fastcart.client;
 
 import com.example.fastcart.net.CartControlC2SPayload;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -25,6 +24,9 @@ public final class CartControlClient {
     private static KeyBinding gearUp;
     private static KeyBinding gearDown;
 
+    // 用 tick 检测是否刚进世界，避免依赖 ClientPlayConnectionEvents（不同版本可能不存在）
+    private static boolean joinMessageSent = false;
+
     public static void init() {
         gearUp = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.fastcart.gear_up",
@@ -40,24 +42,32 @@ public final class CartControlClient {
                 "category.fastcart"
         ));
 
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-            if (client.player != null) {
-                client.player.sendMessage(Text.literal("感谢您使用高速矿车模组\n作者:Ye-Nolta"), false);
-            }
-        });
-
         ClientTickEvents.END_CLIENT_TICK.register(CartControlClient::onClientTick);
     }
 
     private static void onClientTick(MinecraftClient client) {
-        if (client.player == null || client.world == null) return;
+        if (client.player == null || client.world == null) {
+            // 不在世界里时重置，下一次进世界还能提示
+            joinMessageSent = false;
+            lastThrottle = false;
+            lastCartId = -1;
+            return;
+        }
 
+        // 进世界提示（只发一次）
+        if (!joinMessageSent) {
+            client.player.sendMessage(Text.literal("感谢您使用高速矿车模组\n作者:Ye-Nolta"), false);
+            joinMessageSent = true;
+        }
+
+        // 只在玩家正在骑矿车时生效
         if (!(client.player.getVehicle() instanceof AbstractMinecartEntity cart)) {
             lastThrottle = false;
             lastCartId = -1;
             return;
         }
 
+        // PgUp / PgDn：调档（按一次加/减一档）
         boolean changed = false;
         while (gearUp.wasPressed()) {
             int old = gear;
@@ -70,14 +80,17 @@ public final class CartControlClient {
             changed |= (old != gear);
         }
 
+        // W：油门（按住才跑）
         boolean throttle = client.options.forwardKey.isPressed();
 
+        // 换车时强制发一次
         boolean cartChanged = (lastCartId != cart.getId());
         if (cartChanged) {
             lastCartId = cart.getId();
-            lastThrottle = !throttle; // force delta
+            lastThrottle = !throttle;
         }
 
+        // 只有变化才发包
         if (changed || throttle != lastThrottle) {
             ClientPlayNetworking.send(new CartControlC2SPayload(cart.getId(), gear, throttle));
             lastThrottle = throttle;
