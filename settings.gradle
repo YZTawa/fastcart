@@ -1,1 +1,10 @@
+pluginManagement {
+    repositories {
+        // 关键：让 Gradle 能找到 fabric-loom 插件
+        maven { url = "https://maven.fabricmc.net/" }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
 rootProject.name = "fastcart"
