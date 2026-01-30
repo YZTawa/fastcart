@@ -21,16 +21,23 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+      # ✅ 不用 gradle/actions/setup-gradle 的缓存逻辑（它在缓存服务故障时可能导致失败）
+      # ✅ 改用 actions/cache，并且允许失败
+      - name: Restore Gradle cache (non-blocking)
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
-      # ✅ 关键：如果没有 wrapper，直接报错，不要让它自动用 Gradle 9.3
       - name: Verify Gradle Wrapper exists
         run: |
           if [ ! -f "./gradlew" ]; then
-            echo "ERROR: ./gradlew not found. You must commit the Gradle Wrapper to the repo."
-            echo "Run locally: gradle wrapper --gradle-version 8.8, then commit:"
-            echo "  gradlew, gradlew.bat, gradle/wrapper/gradle-wrapper.properties, gradle/wrapper/gradle-wrapper.jar"
+            echo "ERROR: ./gradlew not found. Commit Gradle Wrapper to the repo."
             exit 1
           fi
 
@@ -52,3 +59,13 @@ jobs:
           path: |
             build/libs/*.jar
             build/libs/*.zip
+
+      # ✅ 保存缓存也不阻塞（缓存服务坏了就算了）
+      - name: Save Gradle cache (non-blocking)
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
