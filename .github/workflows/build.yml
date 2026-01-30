@@ -21,17 +21,21 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # ✅ 关键：确保仓库里存在 gradlew（没有就直接失败，别让它用 Gradle 9.3）
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      # ✅ 关键：如果没有 wrapper，直接报错，不要让它自动用 Gradle 9.3
       - name: Verify Gradle Wrapper exists
         run: |
-          test -f ./gradlew || (echo "ERROR: gradlew missing. Commit Gradle Wrapper to repo." && exit 1)
-          test -f ./gradle/wrapper/gradle-wrapper.properties || (echo "ERROR: gradle-wrapper.properties missing." && exit 1)
+          if [ ! -f "./gradlew" ]; then
+            echo "ERROR: ./gradlew not found. You must commit the Gradle Wrapper to the repo."
+            echo "Run locally: gradle wrapper --gradle-version 8.8, then commit:"
+            echo "  gradlew, gradlew.bat, gradle/wrapper/gradle-wrapper.properties, gradle/wrapper/gradle-wrapper.jar"
+            exit 1
+          fi
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
-
-      - name: Setup Gradle (cache)
-        uses: gradle/actions/setup-gradle@v3
 
       - name: Build with Gradle Wrapper
         run: ./gradlew build --no-daemon
