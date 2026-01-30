@@ -18,13 +18,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+          cache: gradle
 
-      # 关键：生成一个指定 Gradle 版本（>=8.12）的 wrapper
-      - name: Generate Gradle Wrapper (Gradle 8.12.1)
-        run: |
-          gradle wrapper --gradle-version 8.12.1
-          chmod +x ./gradlew
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
 
-      # 关键：以后都用 wrapper 跑，别用系统 gradle
-      - name: Build (with Gradle Wrapper)
+      - name: Build
         run: ./gradlew build --no-daemon
