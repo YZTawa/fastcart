@@ -5,6 +5,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.block.AbstractRailBlock;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.enums.RailShape; // ✅ 关键：补这个 import
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
@@ -15,6 +16,7 @@ import net.minecraft.state.property.Property;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
 
 import java.util.Iterator;
 
@@ -24,10 +26,10 @@ public final class CartSpeedController {
     private static final int MIN_GEAR = 1;
     private static final int MAX_GEAR = 10;
 
-    // 10档直线目标速度（方块/tick）
+    // 10档直线目标速度（方块/tick）——想更快就改更大
     private static final double MAX_STRAIGHT_SPEED = 12.0;
 
-    // 防脱轨：弯道/坡道自动限速
+    // 防脱轨：弯道/坡道自动限速（只在需要时介入）
     private static final double SAFE_CURVE_SPEED = 3.0;
     private static final double SAFE_ASCEND_SPEED = 4.0;
 
@@ -42,6 +44,7 @@ public final class CartSpeedController {
         Entity e = player.getWorld().getEntityById(payload.entityId());
         if (!(e instanceof AbstractMinecartEntity cart)) return;
 
+        // 必须是玩家正在骑这个矿车才允许控制
         if (player.getVehicle() != cart) return;
 
         int gear = MathHelper.clamp(payload.gear(), MIN_GEAR, MAX_GEAR);
@@ -78,17 +81,21 @@ public final class CartSpeedController {
         }
     }
 
-    private static void applyControl(ServerWorld world, AbstractMinecartEntity cart, State state) {
+    private static void applyControl(World world, AbstractMinecartEntity cart, State state) {
         if (!state.throttle) {
             cart.setVelocity(Vec3d.ZERO);
             cart.velocityDirty = true;
             return;
         }
 
+        // 任意铁轨都兼容：普通/动力/侦测/激活… 都是 AbstractRailBlock
         BlockPos railPos = cart.getBlockPos();
         BlockState railState = world.getBlockState(railPos);
 
-        if (!(railState.getBlock() instanceof AbstractRailBlock railBlock)) {
+        AbstractRailBlock railBlock;
+        if (railState.getBlock() instanceof AbstractRailBlock rb) {
+            railBlock = rb;
+        } else {
             BlockPos down = railPos.down();
             BlockState downState = world.getBlockState(down);
             if (downState.getBlock() instanceof AbstractRailBlock downRail) {
@@ -115,7 +122,7 @@ public final class CartSpeedController {
 
     private static double gearToSpeed(int gear) {
         double t = (double) gear / (double) MAX_GEAR;
-        return Math.max(MAX_STRAIGHT_SPEED * t, 0.4);
+        return Math.max(MAX_STRAIGHT_SPEED * t, 0.4); // 最低起步速度，避免“按W不走”
     }
 
     private static double applySafetyLimit(double target, RailShape shape) {
@@ -132,6 +139,7 @@ public final class CartSpeedController {
     }
 
     private static Vec3d computeRailDirection(AbstractMinecartEntity cart, RailShape shape) {
+        // 用矿车朝向来决定“沿轨道哪个方向走”，静止也能起步
         Vec3d facing = Vec3d.fromPolar(0.0F, cart.getYaw());
 
         return switch (shape) {
