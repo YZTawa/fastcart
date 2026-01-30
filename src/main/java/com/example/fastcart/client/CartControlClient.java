@@ -1,7 +1,6 @@
 package com.example.fastcart.client;
 
 import com.example.fastcart.net.CartControlC2SPayload;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -22,6 +21,9 @@ public final class CartControlClient {
     private static boolean lastThrottle = false;
     private static int lastCartId = -1;
 
+    // ✅ 进世界提示：只发一次（用 tick 检测是否刚进入世界）
+    private static boolean joinMessageSent = false;
+
     private static KeyBinding gearUp;
     private static KeyBinding gearDown;
 
@@ -40,22 +42,32 @@ public final class CartControlClient {
                 "category.fastcart"
         ));
 
-        // 进世界提示
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-            if (client.player != null) {
-                client.player.sendMessage(Text.literal("感谢您使用高速矿车模组\n作者:Ye-Nolta"), false);
-            }
-        });
+        // ✅ 不再用 ClientPlayConnectionEvents.JOIN
+        // 改为在 tick 中检测 client.player/client.world 是否刚可用，并只发一次
 
-        // 每 tick 检测按键并发包给服务端
         ClientTickEvents.END_CLIENT_TICK.register(CartControlClient::onClientTick);
     }
 
     private static void onClientTick(MinecraftClient client) {
-        if (client.player == null || client.world == null) return;
+        if (client.player == null || client.world == null) {
+            // 不在世界里时重置，下一次进世界还能提示
+            joinMessageSent = false;
+            lastThrottle = false;
+            lastCartId = -1;
+            return;
+        }
+
+        // 进世界提示（只发一次）
+        if (!joinMessageSent) {
+            client.player.sendMessage(Text.literal("感谢您使用高速矿车模组\n作者:Ye-Nolta"), false);
+            joinMessageSent = true;
+        }
+
+        // ……后面保持你原来的“骑矿车/按键/发包”逻辑不变
 
         // 只在玩家正在骑矿车时生效
         if (!(client.player.getVehicle() instanceof AbstractMinecartEntity cart)) {
+            // if we just left a cart, clear state
             lastThrottle = false;
             lastCartId = -1;
             return;
@@ -77,11 +89,11 @@ public final class CartControlClient {
         // W：油门（按住才跑）
         boolean throttle = client.options.forwardKey.isPressed();
 
-        // 换了一辆车就强制同步一次
+        // if cart changed, force send once
         boolean cartChanged = (lastCartId != cart.getId());
         if (cartChanged) {
             lastCartId = cart.getId();
-            lastThrottle = !throttle; // 强制触发一次 delta
+            lastThrottle = !throttle; // force a delta
         }
 
         // 只有变化才发包（省流量，也更稳）
