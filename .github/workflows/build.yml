@@ -12,32 +12,43 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ 拉代码
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ 设置 Java（Fabric 推荐 17）
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
 
-      # 3️⃣ 缓存 Gradle（加速用）
-      - name: Setup Gradle
+      # ✅ 避免 GitHub 缓存服务抽风导致 job 失败：不启用缓存
+      - name: Setup Gradle (no cache)
         uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-disabled: true
 
-      # 4️⃣ 构建
+      # ✅ 如果仓库没有 gradlew，就先生成 wrapper（需要仓库里有 build.gradle / settings.gradle）
+      - name: Ensure Gradle Wrapper exists
+        shell: bash
+        run: |
+          set -e
+          if [ -f "./gradlew" ]; then
+            echo "gradlew exists."
+            chmod +x ./gradlew
+          else
+            echo "gradlew not found. Creating wrapper..."
+            gradle wrapper --gradle-version 8.8
+            chmod +x ./gradlew
+          fi
+
       - name: Build with Gradle
         run: ./gradlew build --no-daemon
 
-      # 5️⃣ （可选）打印产物，方便调试
       - name: List build outputs
         run: |
           echo "=== build/libs ==="
           ls -lah build/libs || true
 
-      # 6️⃣ 上传构建产物（关键步骤！）
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
