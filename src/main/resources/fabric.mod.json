@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "fastcart",
+  "version": "${version}",
+  "name": "FastCart",
+  "description": "High-speed minecart gears: W to drive, PgUp/PgDn for 10 gears.",
+  "authors": ["Ye-Nolta"],
+  "contact": {},
+  "license": "All Rights Reserved",
+  "icon": "assets/fastcart/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.example.fastcart.FastCartMod"],
+    "client": ["com.example.fastcart.client.FastCartClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": "1.21.1"
+  }
+}
