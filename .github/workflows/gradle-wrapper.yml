@@ -22,7 +22,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # ✅ 关键：安装 Gradle 8.8 来生成 wrapper（避免 9.3）
+      # ✅ 用 Gradle 8.8 生成 wrapper，避免 runner 自带 Gradle 9.x
       - name: Setup Gradle 8.8
         uses: gradle/actions/setup-gradle@v3
         with:
@@ -39,9 +39,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add gradlew gradlew.bat gradle/wrapper/gradle-wrapper.properties gradle/wrapper/gradle-wrapper.jar
-          git status
 
-          # 如果没有变化就不提交
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
