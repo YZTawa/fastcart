@@ -21,7 +21,6 @@ public final class CartControlClient {
     private static boolean lastThrottle = false;
     private static int lastCartId = -1;
 
-    // ✅ 进世界提示：只发一次（用 tick 检测是否刚进入世界）
     private static boolean joinMessageSent = false;
 
     private static KeyBinding gearUp;
@@ -42,15 +41,11 @@ public final class CartControlClient {
                 "category.fastcart"
         ));
 
-        // ✅ 不再用 ClientPlayConnectionEvents.JOIN
-        // 改为在 tick 中检测 client.player/client.world 是否刚可用，并只发一次
-
         ClientTickEvents.END_CLIENT_TICK.register(CartControlClient::onClientTick);
     }
 
     private static void onClientTick(MinecraftClient client) {
         if (client.player == null || client.world == null) {
-            // 不在世界里时重置，下一次进世界还能提示
             joinMessageSent = false;
             lastThrottle = false;
             lastCartId = -1;
@@ -63,11 +58,8 @@ public final class CartControlClient {
             joinMessageSent = true;
         }
 
-        // ……后面保持你原来的“骑矿车/按键/发包”逻辑不变
-
         // 只在玩家正在骑矿车时生效
         if (!(client.player.getVehicle() instanceof AbstractMinecartEntity cart)) {
-            // if we just left a cart, clear state
             lastThrottle = false;
             lastCartId = -1;
             return;
@@ -89,14 +81,14 @@ public final class CartControlClient {
         // W：油门（按住才跑）
         boolean throttle = client.options.forwardKey.isPressed();
 
-        // if cart changed, force send once
+        // 换车时强制发一次
         boolean cartChanged = (lastCartId != cart.getId());
         if (cartChanged) {
             lastCartId = cart.getId();
-            lastThrottle = !throttle; // force a delta
+            lastThrottle = !throttle;
         }
 
-        // 只有变化才发包（省流量，也更稳）
+        // 只有变化才发包
         if (changed || throttle != lastThrottle) {
             ClientPlayNetworking.send(new CartControlC2SPayload(cart.getId(), gear, throttle));
             lastThrottle = throttle;
