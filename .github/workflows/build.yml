@@ -19,13 +19,12 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      # 关键：不要用 runner 自带的 Gradle 9.3
-      # 直接下载一个 Loom 兼容的 Gradle 8.x 来跑构建
-      - name: Download Gradle 8.11.1
+      # 关键：生成一个指定 Gradle 版本（>=8.12）的 wrapper
+      - name: Generate Gradle Wrapper (Gradle 8.12.1)
         run: |
-          curl -L -o gradle.zip https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-          unzip -q gradle.zip
-          echo "$PWD/gradle-8.11.1/bin" >> $GITHUB_PATH
+          gradle wrapper --gradle-version 8.12.1
+          chmod +x ./gradlew
 
-      - name: Build (Gradle 8.11.1)
-        run: gradle build --no-daemon
+      # 关键：以后都用 wrapper 跑，别用系统 gradle
+      - name: Build (with Gradle Wrapper)
+        run: ./gradlew build --no-daemon
