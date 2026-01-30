@@ -15,6 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -22,17 +23,22 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # ✅ 用 Gradle 8.8 生成 wrapper，避免 runner 自带 Gradle 9.x
+      # ✅ 安装/使用指定 Gradle 8.8（不是 9.x）
       - name: Setup Gradle 8.8
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: "8.8"
 
+      # ✅ 生成 wrapper（会产生 gradlew/gradlew.bat/gradle-wrapper.jar 等）
       - name: Generate Gradle Wrapper (8.8)
         run: |
+          gradle --version
           gradle wrapper --gradle-version 8.8
           chmod +x ./gradlew
+          ls -lah
+          ls -lah gradle/wrapper || true
 
+      # ✅ 提交并推送到 main
       - name: Commit and push Gradle Wrapper
         run: |
           git config user.name "github-actions[bot]"
@@ -45,5 +51,5 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Add Gradle Wrapper (8.8)"
-          git push origin main
+          git commit -m "Add Gradle Wrapper (Gradle 8.8)"
+          git push origin HEAD:main
