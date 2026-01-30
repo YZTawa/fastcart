@@ -1,26 +1,16 @@
 package com.example.fastcart.client;
 
-package com.example.fastcart.server;
-
 import com.example.fastcart.net.CartControlC2SPayload;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.block.AbstractRailBlock;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.enums.RailShape;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.state.property.Property;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-
-import java.util.Iterator;
-
+import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
 
 public final class CartControlClient {
     private CartControlClient() {}
@@ -34,9 +24,6 @@ public final class CartControlClient {
 
     private static KeyBinding gearUp;
     private static KeyBinding gearDown;
-
-    // 用 tick 检测是否刚进世界，避免依赖 ClientPlayConnectionEvents（不同版本可能不存在）
-    private static boolean joinMessageSent = false;
 
     public static void init() {
         gearUp = KeyBindingHelper.registerKeyBinding(new KeyBinding(
@@ -53,23 +40,19 @@ public final class CartControlClient {
                 "category.fastcart"
         ));
 
+        // 进世界提示
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            if (client.player != null) {
+                client.player.sendMessage(Text.literal("感谢您使用高速矿车模组\n作者:Ye-Nolta"), false);
+            }
+        });
+
+        // 每 tick 检测按键并发包给服务端
         ClientTickEvents.END_CLIENT_TICK.register(CartControlClient::onClientTick);
     }
 
     private static void onClientTick(MinecraftClient client) {
-        if (client.player == null || client.world == null) {
-            // 不在世界里时重置，下一次进世界还能提示
-            joinMessageSent = false;
-            lastThrottle = false;
-            lastCartId = -1;
-            return;
-        }
-
-        // 进世界提示（只发一次）
-        if (!joinMessageSent) {
-            client.player.sendMessage(Text.literal("感谢您使用高速矿车模组\n作者:Ye-Nolta"), false);
-            joinMessageSent = true;
-        }
+        if (client.player == null || client.world == null) return;
 
         // 只在玩家正在骑矿车时生效
         if (!(client.player.getVehicle() instanceof AbstractMinecartEntity cart)) {
@@ -94,14 +77,14 @@ public final class CartControlClient {
         // W：油门（按住才跑）
         boolean throttle = client.options.forwardKey.isPressed();
 
-        // 换车时强制发一次
+        // 换了一辆车就强制同步一次
         boolean cartChanged = (lastCartId != cart.getId());
         if (cartChanged) {
             lastCartId = cart.getId();
-            lastThrottle = !throttle;
+            lastThrottle = !throttle; // 强制触发一次 delta
         }
 
-        // 只有变化才发包
+        // 只有变化才发包（省流量，也更稳）
         if (changed || throttle != lastThrottle) {
             ClientPlayNetworking.send(new CartControlC2SPayload(cart.getId(), gear, throttle));
             lastThrottle = throttle;
