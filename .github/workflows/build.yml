@@ -21,27 +21,19 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # ✅ 避免 GitHub 缓存服务抽风导致 job 失败：不启用缓存
-      - name: Setup Gradle (no cache)
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          cache-disabled: true
-
-      # ✅ 如果仓库没有 gradlew，就先生成 wrapper（需要仓库里有 build.gradle / settings.gradle）
-      - name: Ensure Gradle Wrapper exists
-        shell: bash
+      # ✅ 关键：确保仓库里存在 gradlew（没有就直接失败，别让它用 Gradle 9.3）
+      - name: Verify Gradle Wrapper exists
         run: |
-          set -e
-          if [ -f "./gradlew" ]; then
-            echo "gradlew exists."
-            chmod +x ./gradlew
-          else
-            echo "gradlew not found. Creating wrapper..."
-            gradle wrapper --gradle-version 8.8
-            chmod +x ./gradlew
-          fi
+          test -f ./gradlew || (echo "ERROR: gradlew missing. Commit Gradle Wrapper to repo." && exit 1)
+          test -f ./gradle/wrapper/gradle-wrapper.properties || (echo "ERROR: gradle-wrapper.properties missing." && exit 1)
 
-      - name: Build with Gradle
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Setup Gradle (cache)
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build with Gradle Wrapper
         run: ./gradlew build --no-daemon
 
       - name: List build outputs
