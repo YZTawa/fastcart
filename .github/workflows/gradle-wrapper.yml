@@ -1,4 +1,4 @@
-name: Generate Gradle Wrapper
+name: Setup Gradle Wrapper (8.8)
 
 on:
   workflow_dispatch:
@@ -22,27 +22,30 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Install Gradle
+      # ✅ 关键：安装 Gradle 8.8 来生成 wrapper（避免 9.3）
+      - name: Setup Gradle 8.8
         uses: gradle/actions/setup-gradle@v3
         with:
-          cache-disabled: true
+          gradle-version: "8.8"
 
-      - name: Generate wrapper files
-        shell: bash
+      - name: Generate Gradle Wrapper (8.8)
         run: |
-          set -e
           gradle wrapper --gradle-version 8.8
           chmod +x ./gradlew
 
-      - name: Commit wrapper to repository
-        shell: bash
+      - name: Commit and push Gradle Wrapper
         run: |
-          set -e
-          git status
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add gradlew gradlew.bat gradle/wrapper/gradle-wrapper.properties gradle/wrapper/gradle-wrapper.jar
-          git commit -m "Add Gradle wrapper" || echo "Nothing to commit"
 
-      - name: Push changes
-        run: git push
+          git add gradlew gradlew.bat gradle/wrapper/gradle-wrapper.properties gradle/wrapper/gradle-wrapper.jar
+          git status
+
+          # 如果没有变化就不提交
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Add Gradle Wrapper (8.8)"
+          git push origin main
